@@ -3,7 +3,11 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes";
 import taskRoutes from "./routes/taskRoutes";
 
+import { connectDB } from "./config/database";
+
 const app = express();
+
+connectDB();
 
 app.use(cors());
 app.use(express.json());
