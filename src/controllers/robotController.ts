@@ -3,6 +3,7 @@ import { AuthRequest } from "../middlewares/authMiddleware";
 import { createAIProvider, Message } from "../services/ai/AIProvider";
 import { TOOL_DEFINITIONS, executeTool } from "../services/ai/tools";
 import { buildSystemPrompt } from "../services/ai/systemPrompt";
+import { RobotMemory } from "../models/RobotMemory";
 
 // Maximum agentic loop iterations to prevent infinite loops
 const MAX_TOOL_ITERATIONS = 6;
@@ -33,9 +34,14 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
       }));
 
     const provider = createAIProvider();
+    
+    // Inject memories into context
+    const memories = await RobotMemory.find({ user_id: req.user._id }).sort({ created_at: -1 });
+
     const systemPrompt = buildSystemPrompt({
       today: new Date().toISOString().split("T")[0],
       userEmail: req.user?.email,
+      memories: memories.map(m => m.toJSON()),
     });
 
     // Agentic loop: let the model call tools iteratively
@@ -138,6 +144,41 @@ export const getStatus = async (_req: AuthRequest, res: Response): Promise<void>
     model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
     status: "operational",
   });
+};
+
+// ─────────────────────────────────────────────────────────────
+// Memory Management Endpoints (for UI)
+// ─────────────────────────────────────────────────────────────
+
+export const getMemories = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const memories = await RobotMemory.find({ user_id: req.user._id }).sort({ created_at: -1 });
+    res.json(memories);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteMemory = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const mem = await RobotMemory.findOneAndDelete({ _id: req.params.id, user_id: req.user._id });
+    if (!mem) {
+      res.status(404).json({ message: "Memory not found" });
+      return;
+    }
+    res.json({ message: "Memory deleted" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const clearMemories = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await RobotMemory.deleteMany({ user_id: req.user._id });
+    res.json({ message: "All memories cleared" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // ─────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import { Task } from "../../models/Task";
 import { Activity } from "../../models/Activity";
+import { RobotMemory } from "../../models/RobotMemory";
+import { getRecommendedTasks, getProductivityInsights, getReviewData } from "./productivityService";
 import { ToolDefinition } from "./AIProvider";
 
 // ─────────────────────────────────────────────────────────────
@@ -232,6 +234,107 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
             description: "End date YYYY-MM-DD for filtering activities.",
           },
         },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "saveMemory",
+      description: "Save a new personal memory or preference for the user. Call this when the user asks you to remember something (e.g. 'remember that I prefer mornings'). Do NOT save sensitive info like passwords.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "The content to remember." },
+          type: {
+            type: "string",
+            enum: ["PREFERENCE", "GOAL", "PROJECT_CONTEXT", "PRODUCTIVITY_PATTERN", "IMPORTANT_FACT"],
+            description: "The category of this memory.",
+          },
+        },
+        required: ["content", "type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "deleteMemory",
+      description: "Delete a specific saved memory by ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "The memory ID to delete." },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "clearMemories",
+      description: "Clear all saved memories for the user.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "planMyDay",
+      description: "Analyzes today's tasks and upcoming deadlines, and generates a structured daily plan recommending what to focus on.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getRecommendedTasks",
+      description: "Get a scored and ranked list of the most highly recommended tasks to work on next.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Number of tasks to recommend. Default 5." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reviewProductivity",
+      description: "Get a structured review of the user's productivity for a specific period (day, week, month). Use for 'review my day', 'how did I do this week'.",
+      parameters: {
+        type: "object",
+        properties: {
+          period: {
+            type: "string",
+            enum: ["day", "week", "month"],
+            description: "The time period to review.",
+          },
+        },
+        required: ["period"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getProductivityInsights",
+      description: "Get trend analysis (improving vs declining) and deeper insights into productivity patterns. Use for 'show me my productivity trend'.",
+      parameters: {
+        type: "object",
+        properties: {},
         required: [],
       },
     },
@@ -529,6 +632,59 @@ export async function executeTool(
           .limit(Number(limit));
 
         return { success: true, data: activities.map((a) => a.toJSON()) };
+      }
+
+      case "saveMemory": {
+        const { content, type } = args;
+        if (!content || !type) return { success: false, error: "content and type required." };
+        const mem = await RobotMemory.create({ user_id: userId, content: String(content), type: String(type) as any }) as any;
+        return { success: true, data: mem.toJSON() };
+      }
+
+      case "deleteMemory": {
+        const mem = await RobotMemory.findOneAndDelete({ _id: args.id, user_id: userId });
+        if (!mem) return { success: false, error: "Memory not found." };
+        return { success: true, data: { deleted: true } };
+      }
+
+      case "clearMemories": {
+        await RobotMemory.deleteMany({ user_id: userId });
+        return { success: true, data: { cleared: true } };
+      }
+
+      case "planMyDay": {
+        const today = getTodayStr();
+        const todayTasks = await Task.find({ user_id: userId, task_date: today }).sort({ priority: -1 });
+        const overdueTasks = await Task.find({ user_id: userId, status: { $ne: "complete" }, task_date: { $lt: today } });
+        const recommended = await getRecommendedTasks(userId, 3);
+        
+        return {
+          success: true,
+          data: {
+            today_total: todayTasks.length,
+            today_pending: todayTasks.filter((t) => String(t.status) !== "complete").length,
+            overdue_count: overdueTasks.length,
+            recommended_tasks: recommended,
+            today_tasks: todayTasks.slice(0, 10).map(t => t.toJSON()), // limit output
+          },
+        };
+      }
+
+      case "getRecommendedTasks": {
+        const { limit = 5 } = args;
+        const recommended = await getRecommendedTasks(userId, Number(limit));
+        return { success: true, data: recommended };
+      }
+
+      case "reviewProductivity": {
+        const { period } = args;
+        const data = await getReviewData(userId, period);
+        return { success: true, data };
+      }
+
+      case "getProductivityInsights": {
+        const data = await getProductivityInsights(userId);
+        return { success: true, data };
       }
 
       default:
