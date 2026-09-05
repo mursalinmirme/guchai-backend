@@ -76,4 +76,23 @@ taskSchema.virtual("id").get(function () {
   return this._id;
 });
 
-export const Task = mongoose.model("Task", taskSchema);
+export interface ITask {
+  _id: string;
+  user_id: string;
+  title: string;
+  details: string | null;
+  priority: "low" | "medium" | "high" | "urgent";
+  status: "pending" | "in_progress" | "complete";
+  task_date: string;
+  planned_start: string;
+  planned_end: string;
+  actual_start: string | null;
+  actual_end: string | null;
+  accumulated_seconds: number;
+  position: number;
+  created_at: Date;
+  updated_at: Date;
+  id: string;
+}
+
+export const Task = mongoose.model<ITask>("Task", taskSchema);

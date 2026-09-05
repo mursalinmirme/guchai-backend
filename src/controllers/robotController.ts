@@ -40,6 +40,7 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
 
     const systemPrompt = buildSystemPrompt({
       today: new Date().toISOString().split("T")[0],
+      timezone: req.user.preferences?.timezone || "UTC",
       userEmail: req.user?.email,
       memories: memories.map(m => m.toJSON()),
     });
