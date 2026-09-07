@@ -39,8 +39,9 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
     const memories = await RobotMemory.find({ user_id: req.user._id }).sort({ created_at: -1 });
 
     const systemPrompt = buildSystemPrompt({
-      today: new Date().toISOString().split("T")[0],
-      timezone: req.user.preferences?.timezone || "UTC",
+      // Compute today's date in BD local time (Asia/Dhaka, UTC+6)
+      today: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()),
+      timezone: req.user.preferences?.timezone || "Asia/Dhaka",
       userEmail: req.user?.email,
       memories: memories.map(m => m.toJSON()),
     });

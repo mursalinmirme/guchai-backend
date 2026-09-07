@@ -6,13 +6,15 @@ import { Activity } from "../../models/Activity";
 // ─────────────────────────────────────────────────────────────
 
 function getTodayStr(): string {
-  return new Date().toISOString().split("T")[0];
+  // Always compute today in Bangladesh Standard Time (UTC+6)
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date());
 }
 
 function getDateStr(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().split("T")[0];
+  // Compute the offset date in Bangladesh Standard Time (UTC+6)
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(d);
 }
 
 // ─────────────────────────────────────────────────────────────
