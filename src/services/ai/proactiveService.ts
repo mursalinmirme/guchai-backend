@@ -8,6 +8,7 @@
 import { Task } from "../../models/Task";
 import { User } from "../../models/User";
 import { RobotNotification, NotificationType, NotificationPriority } from "../../models/RobotNotification";
+import { emitAssistantEvent } from "../realtime";
 
 // ─────────────────────────────────────────────────────────────
 // Config: Thresholds (centralized, not scattered)
@@ -132,6 +133,15 @@ async function createNotification(params: {
       dedup_key: params.dedupKey,
     });
     console.log(`[Proactive] Created ${params.type} for user ${params.userId} — key: ${params.dedupKey}`);
+    
+    // Trigger real-time proactive websocket event
+    emitAssistantEvent(params.userId, "assistant.notification", {
+      type: params.type,
+      title: params.title,
+      message: params.message,
+      priority: params.priority
+    });
+    
     return true;
   } catch (err: any) {
     // E11000 duplicate key — this event was already notified, silently skip

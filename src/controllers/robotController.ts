@@ -4,6 +4,7 @@ import { createAIProvider, Message } from "../services/ai/AIProvider";
 import { TOOL_DEFINITIONS, executeTool } from "../services/ai/tools";
 import { buildSystemPrompt } from "../services/ai/systemPrompt";
 import { RobotMemory } from "../models/RobotMemory";
+import { emitAssistantEvent } from "../services/realtime";
 
 // Maximum agentic loop iterations to prevent infinite loops
 const MAX_TOOL_ITERATIONS = 6;
@@ -55,6 +56,7 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
     while (iteration < MAX_TOOL_ITERATIONS) {
       iteration++;
 
+      emitAssistantEvent(req.user._id.toString(), "assistant.thinking", { iteration });
       const aiResponse = await provider.generateWithTools(
         conversationMessages,
         TOOL_DEFINITIONS,
@@ -90,10 +92,14 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
 
         // Generate a human-readable label for the UI
         const label = getToolLabel(toolName, args);
+        
+        emitAssistantEvent(req.user._id.toString(), "assistant.progress", { label, toolName });
 
         const result = await executeTool(toolName, args, req.user._id);
 
         toolExecutions.push({ tool: toolName, args, result, label });
+
+        emitAssistantEvent(req.user._id.toString(), "assistant.tool_completed", { label, toolName, success: result.success });
 
         // Add tool result to conversation
         conversationMessages.push({

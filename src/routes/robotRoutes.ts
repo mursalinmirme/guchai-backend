@@ -9,9 +9,11 @@ import {
   getPreferences, 
   updatePreferences 
 } from "../controllers/notificationController";
+import { handleSSE } from "../services/realtime";
 
 const router = express.Router();
 
+router.get("/stream", protect, handleSSE);
 router.post("/chat", protect, chat);
 router.get("/status", protect, getStatus);
 
